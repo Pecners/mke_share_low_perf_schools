@@ -1,0 +1,106 @@
+---
+title: "Milwaukee's Share of Low-Performing Schools"
+author: "Spencer Schien"
+date: "9/25/2019"
+output: pdf_document
+---
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+library(knitr)
+```
+
+
+```{r}
+library(DBI)
+library(tidyverse)
+
+con <- dbConnect(RSQLite::SQLite(), "C:/Users/Spencer/OneDrive - Schools That Can Milwaukee/Data & Impact/R Files/schools_db/school_db.sqlite")
+
+rc <- dbReadTable(con, "report_cards")
+
+low_performers <- c("Alternate Rating - Needs Improvement",
+                    "Fails to Meet Expectations",
+                    "Fails to Meed Expectations^")
+
+rc_18 <- rc %>%
+  filter(school_year == "2017-18" & !(has_2_rc == 1 & report_card_type == "Private - Choice Students")) %>%
+  mutate(mke_indicator = ifelse((city == "Milwaukee" & (locale_description == "City" | locale_description == "NA")), 1, 0),
+         low_perf = ifelse(overall_rating %in% low_performers, 1, 0))
+
+
+performance <- rc_18 %>%
+  group_by(mke_indicator) %>%
+  summarise(total = n(),
+            low = sum(low_perf))
+```
+
+The purpose of this document is to answer the following question:  **What share of Wisconsin's low-performing schools are in Milwaukee?**
+
+First, it is instructive to know what share of Wisconsin schools are in Milwaukee in general.
+
+* **Milwaukee**: `r sum(rc_18$mke_indicator)` (`r paste(round(sum(rc_18$mke_indicator)/nrow(rc_18)*100, 1), "%", sep = "")`) 
+* **Not Milwaukee**: `r sum(rc_18$mke_indicator == 0)` (`r paste(round(sum(rc_18$mke_indicator == 0)/nrow(rc_18)*100, 1), "%", sep = "")`)
+
+### Performance as indicated by the School Report Card Overall Ratings
+
+First, we will label schools as *low-performing* based on having the following School Report Card ratings:  
+  
+* Alternate Rating - Needs Improvemen
+* Fails to Meet Expectation
+* Fails to Meed Expectations^ 
+  
+By this definition, a Milwaukee school is 20% more likely to be low-performing than a school not in Milwaukee, and a school not in Milwaukee is 18% LESS likely to be low-performing.
+
+```{r}
+performance %>%
+  mutate(mke_indicator = ifelse(mke_indicator == 1, "Milwaukee", "Not Milwaukee")) %>%
+  select("Milwaukee Indicator" = mke_indicator,
+         "Total Schools" = total,
+         "Low Performing Schools" = low) %>%
+  kable()
+```
+
+### Performance as indicated by Spencer's Benchmarking
+
+Next, we will label schools as *low-performing* based on the the Benchmarking model Spencer created.  **It should be noted that the original model was optimized for Milwaukee, meaning no out-state schools were included.**  Therefore, the results listed below should be interpreted with caution.
+
+Also recall that this model depends on the Achievement Score, and schools are omitted when they don't have that score.  This is why the number of *Total Schools* are different.
+
+```{r}
+
+library(broom)
+
+nested <- rc_18 %>%
+  nest(-grade_band)
+
+mod_fun_clust <- function(df) {
+  lm(sch_ach ~ per_ed + per_swd + per_b_aa, data = df)
+}
+
+nested_ach <- nested %>%
+  mutate(model = map(data, mod_fun_clust),
+         tidied = map(model, tidy),
+         augmented = map2(model, data, augment_columns)) %>%
+  arrange(grade_band)
+
+modeled_ach <- nested_ach  %>%
+  unnest(augmented) %>%
+  mutate(bench_low_ind = ifelse(.resid >= mean(.resid, na.rm = TRUE) - 2 * sd(.resid, na.rm = TRUE), 0, 1))
+
+
+bench_perf <- modeled_ach %>%
+  group_by(mke_indicator) %>%
+  summarise(total = n(),
+            low = sum(bench_low_ind)) 
+
+bench_perf %>%
+  mutate(mke_indicator = ifelse(mke_indicator == 1, "Milwaukee", "Not Milwaukee")) %>%
+  select("Milwaukee Indicator" = mke_indicator,
+         "Total Schools" = total,
+         "Low Performing Schools" = low) %>%
+  kable()
+```
+
+This table labels as low-performing those schools whose *Difference from Benchmark* is greater than two standard deviations **below** the mean--put another way, it's about the bottom 2.5%.
+
+By this definition, a Milwaukee School is 18% more likely to be low-performing than a school not in Milwaukee, but a school not in Milwaukee is only 2% less likely to be low-performing.
