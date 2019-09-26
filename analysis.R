@@ -7,7 +7,9 @@ rc <- dbReadTable(con, "report_cards")
 
 low_performers <- c("Alternate Rating - Needs Improvement",
                     "Fails to Meet Expectations",
-                    "Fails to Meed Expectations^")
+                    "Fails to Meed Expectations^",
+                    "Meets Few Expectations",
+                    "Meets Few Expectations^")
 
 rc_18 <- rc %>%
   filter(school_year == "2017-18" & !(has_2_rc == 1 & report_card_type == "Private - Choice Students")) %>%
@@ -22,7 +24,7 @@ performance <- rc_18 %>%
 
 model <- lm(data = rc_18, formula = low_perf ~ mke_indicator)
 
-summary(model)
+summary1 <- summary(model)
 
 performance %>%
   ggplot(aes(mke_indicator, low)) +
@@ -66,4 +68,4 @@ bench_perf <- modeled_ach %>%
             low = sum(bench_low_ind)) 
 
 model2 <- lm(data = modeled_ach, formula = bench_low_ind ~ mke_indicator)
-summary(model2)
+summary2 <- summary(model2)

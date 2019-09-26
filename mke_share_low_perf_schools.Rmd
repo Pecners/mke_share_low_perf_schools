@@ -1,7 +1,7 @@
 ---
 title: "Milwaukee's Share of Low-Performing Schools"
 author: "Spencer Schien"
-date: "9/25/2019"
+date: "`r Sys.time()`"
 output: pdf_document
 ---
 ```{r global_options, include=FALSE}
@@ -18,9 +18,13 @@ con <- dbConnect(RSQLite::SQLite(), "C:/Users/Spencer/OneDrive - Schools That Ca
 
 rc <- dbReadTable(con, "report_cards")
 
+dbDisconnect(con)
+
 low_performers <- c("Alternate Rating - Needs Improvement",
                     "Fails to Meet Expectations",
-                    "Fails to Meed Expectations^")
+                    "Fails to Meed Expectations^",
+                    "Meets Few Expectations",
+                    "Meets Few Expectations^")
 
 rc_18 <- rc %>%
   filter(school_year == "2017-18" & !(has_2_rc == 1 & report_card_type == "Private - Choice Students")) %>%
@@ -32,6 +36,10 @@ performance <- rc_18 %>%
   group_by(mke_indicator) %>%
   summarise(total = n(),
             low = sum(low_perf))
+
+model <- lm(data = rc_18, formula = low_perf ~ mke_indicator)
+
+summary1 <- summary(model)
 ```
 
 The purpose of this document is to answer the following question:  **What share of Wisconsin's low-performing schools are in Milwaukee?**
@@ -45,11 +53,13 @@ First, it is instructive to know what share of Wisconsin schools are in Milwauke
 
 First, we will label schools as *low-performing* based on having the following School Report Card ratings:  
   
-* Alternate Rating - Needs Improvemen
-* Fails to Meet Expectation
-* Fails to Meed Expectations^ 
+```{r}
+low_performers %>%
+  kable(col.names = NULL)
+```
+
   
-By this definition, a Milwaukee school is 20% more likely to be low-performing than a school not in Milwaukee, and a school not in Milwaukee is 18% LESS likely to be low-performing.
+By this definition, a Milwaukee school is `r paste(round((summary1$coefficients[[2]] - summary1$coefficients[[1]]) * 100, 0), "%", sep = "")` `r ifelse(summary1$coefficients[[2]] - summary1$coefficients[[1]] > 0, "MORE", "LESS")` likely to be low-performing than a school not in Milwaukee.
 
 ```{r}
 performance %>%
@@ -93,6 +103,9 @@ bench_perf <- modeled_ach %>%
   summarise(total = n(),
             low = sum(bench_low_ind)) 
 
+model2 <- lm(data = modeled_ach, formula = bench_low_ind ~ mke_indicator)
+summary2 <- summary(model2)
+
 bench_perf %>%
   mutate(mke_indicator = ifelse(mke_indicator == 1, "Milwaukee", "Not Milwaukee")) %>%
   select("Milwaukee Indicator" = mke_indicator,
@@ -103,4 +116,4 @@ bench_perf %>%
 
 This table labels as low-performing those schools whose *Difference from Benchmark* is greater than two standard deviations **below** the mean--put another way, it's about the bottom 2.5%.
 
-By this definition, a Milwaukee School is 18% more likely to be low-performing than a school not in Milwaukee, but a school not in Milwaukee is only 2% less likely to be low-performing.
+By this definition, a Milwaukee school is `r paste(round((summary2$coefficients[[2]] - summary2$coefficients[[1]]) * 100, 0), "%", sep = "")` `r ifelse(summary2$coefficients[[2]] - summary2$coefficients[[1]] > 0, "MORE", "LESS")` likely to be low-performing than a school not in Milwaukee.
