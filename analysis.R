@@ -5,6 +5,9 @@ con <- dbConnect(RSQLite::SQLite(), "C:/Users/Spencer/OneDrive - Schools That Ca
 
 rc <- dbReadTable(con, "report_cards")
 
+dbDisconnect(con)
+my_cols <- c("#003349", "#E57200", "#69DBC8", "#C7DBF4", "#00A9E0")
+
 low_performers <- c("Alternate Rating - Needs Improvement",
                     "Fails to Meet Expectations",
                     "Fails to Meed Expectations^",
