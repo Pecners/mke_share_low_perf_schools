@@ -1,6 +1,5 @@
 ---
 title: "Milwaukee's Share of Low Performing Wisconsin Schools"
-author: "Your Name"
 date: "`r Sys.time()`"
 logo: logo.png
 output: 
@@ -39,7 +38,12 @@ rc_18 <- rc %>%
 performance <- rc_18 %>%
   group_by(mke_indicator) %>%
   summarise(total = n(),
+            total_enrollment = sum(school_enrollment, na.rm = TRUE),
             low = sum(low_perf))
+
+enr_breakdown <- rc_18 %>%
+  group_by(mke_indicator, low_perf) %>%
+  summarise(total_enrollment = sum(school_enrollment, na.rm = TRUE))
 
 model <- lm(data = rc_18, formula = low_perf ~ mke_indicator)
 
